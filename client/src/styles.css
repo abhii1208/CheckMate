@@ -406,6 +406,23 @@ th {
   background: linear-gradient(135deg, #ffffff 0%, #f3fbf6 100%);
 }
 
+.scan-hero-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-hero-panel::after {
+  content: '';
+  position: absolute;
+  right: -36px;
+  top: -36px;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(31, 143, 89, 0.14), transparent 68%);
+  pointer-events: none;
+}
+
 .workflow-steps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -479,19 +496,54 @@ th {
 
 .scanner-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
   gap: 18px;
+  align-items: start;
+}
+
+.scan-panel,
+.scan-result-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-panel-active {
+  background: linear-gradient(180deg, #0f1f18 0%, #152a20 100%);
+  border-color: #294537;
+  color: #edf9f1;
+}
+
+.scan-panel-active .method-card,
+.scan-panel-active .method-card-accent {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(194, 226, 208, 0.14);
+}
+
+.scan-panel-active .method-card p,
+.scan-panel-active .helper-text,
+.scan-panel-active .camera-select span {
+  color: rgba(237, 249, 241, 0.8);
+}
+
+.scan-panel-active .camera-select select,
+.scan-panel-active .barcode-form input {
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .method-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
 .method-card {
   padding: 16px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.method-card-accent {
+  background: linear-gradient(145deg, #ffffff 0%, #f3fbf6 100%);
+  border: 1px solid #cfe6d8;
 }
 
 .method-card:hover {
@@ -561,18 +613,134 @@ th {
 }
 
 .camera-reader {
-  max-width: 380px;
-  min-height: 180px;
-  margin: 16px auto 0;
-  padding: 8px;
-  border-radius: 16px;
-  background: #f8fcf9;
-  border: 1px solid #d8ece0;
+  width: 100%;
+  min-height: 240px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #102c1d;
+  object-fit: cover;
 }
 
 .camera-reader video {
+  border-radius: 16px;
+  filter: brightness(1.12) contrast(1.08) saturate(1.05);
+}
+
+.camera-reader-plain {
+  display: block;
+  width: 100%;
+  min-height: 260px;
+  object-fit: cover;
+  background: #0f1f18;
+  border-radius: 16px;
+  filter: brightness(1.05) contrast(1.04);
+}
+
+.camera-shell {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.camera-shell-hidden {
+  display: none;
+}
+
+.camera-frame {
+  position: relative;
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 10px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f8fcf9 0%, #eef7f2 100%);
+  border: 1px solid #d8ece0;
+  box-shadow: 0 18px 30px rgba(18, 94, 58, 0.08);
+}
+
+.camera-frame-dynamic {
+  overflow: hidden;
+}
+
+.camera-frame-lowglare {
+  background: linear-gradient(180deg, #1a2a22 0%, #22372c 100%);
+  border-color: #244031;
+}
+
+.camera-reader-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #182821;
+  min-height: 260px;
+  isolation: isolate;
+}
+
+.camera-reader-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.08)),
+    radial-gradient(circle at center, transparent 0%, transparent 68%, rgba(0, 0, 0, 0.08) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.camera-reader-shell video,
+.camera-reader-shell canvas,
+.camera-reader-shell img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  min-height: 260px;
+  object-fit: cover;
+  background: transparent;
+}
+
+.camera-reader-shell canvas.imgBuffer,
+.camera-reader-shell canvas.drawingBuffer {
+  display: none !important;
+}
+
+.camera-overlay {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 22px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(7, 25, 16, 0.08), rgba(7, 25, 16, 0.34));
+  color: #f3fff7;
+  backdrop-filter: blur(8px);
+  display: grid;
+  gap: 8px;
+  z-index: 2;
+}
+
+.camera-overlay strong,
+.camera-overlay p {
+  margin: 0;
+}
+
+.camera-overlay p {
+  color: rgba(243, 255, 247, 0.84);
+  font-size: 0.92rem;
+}
+
+.camera-select {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  font-weight: 600;
+}
+
+.camera-select select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #c8e0d2;
   border-radius: 12px;
-  filter: brightness(1.15) contrast(1.08);
+  background: #ffffff;
 }
 
 .error-text {
@@ -628,10 +796,173 @@ th {
   gap: 14px;
 }
 
+.duplicate-picker {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #d8ece0;
+  background: linear-gradient(180deg, #fbfffc 0%, #f3fbf6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.duplicate-picker-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.duplicate-picker-head strong {
+  display: block;
+  font-size: 1rem;
+  color: #163524;
+}
+
+.duplicate-picker-field {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+  color: #244936;
+}
+
+.duplicate-picker-field span {
+  font-size: 0.92rem;
+  color: #456554;
+}
+
+.duplicate-picker-field select {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #c4dfcf;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 252, 248, 0.96));
+  color: #163524;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(20, 87, 54, 0.08);
+}
+
+.duplicate-picker-tools {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.duplicate-picker-search {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+  color: #244936;
+}
+
+.duplicate-picker-search span {
+  font-size: 0.92rem;
+  color: #456554;
+}
+
+.duplicate-picker-search input {
+  min-height: 48px;
+}
+
+.duplicate-tool-note {
+  margin-top: 0;
+}
+
+.duplicate-camera-box {
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #cfe3d6;
+  background: linear-gradient(180deg, #13261d 0%, #1a3126 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.duplicate-camera-video {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  object-fit: cover;
+  background: #102118;
+}
+
+.duplicate-camera-error {
+  margin-top: 0;
+}
+
+.duplicate-filter-message {
+  margin-top: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(20, 105, 66, 0.08);
+  color: #0f6b3a;
+  font-weight: 600;
+}
+
 .stock-form label {
   display: grid;
   gap: 8px;
   font-weight: 600;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.quick-editor-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.editor-field {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-field-priority input {
+  min-height: 48px;
+}
+
+.field-inline-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.field-inline-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-field span {
+  font-size: 0.92rem;
+  color: #40614f;
+}
+
+.editor-field.is-quantity input {
+  font-weight: 700;
+}
+
+.editor-details {
+  border: 1px solid #d8ece0;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fbfffc;
+}
+
+.editor-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #185136;
+}
+
+.editor-details .editor-grid {
+  margin-top: 12px;
+}
+
+.editor-actions {
+  display: grid;
+  gap: 10px;
 }
 
 .row-context {
@@ -643,7 +974,23 @@ th {
 }
 
 .duplicate-note {
-  margin-top: -2px;
+  margin-top: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(31, 143, 89, 0.08);
+}
+
+.voice-btn {
+  white-space: nowrap;
+}
+
+.voice-btn-live {
+  background: #fff4e5;
+  color: #925f00;
+}
+
+.voice-note {
+  margin-top: 4px;
 }
 
 .empty-state {
@@ -1085,5 +1432,24 @@ th {
   .product-header-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .button-row,
+  .barcode-form,
+  .field-inline-row {
+    flex-direction: column;
+  }
+
+  .barcode-form input,
+  .stock-form input,
+  .stock-form select,
+  .camera-select select {
+    max-width: none;
+  }
+
+  .camera-overlay {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
   }
 }

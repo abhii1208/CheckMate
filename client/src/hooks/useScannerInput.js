@@ -26,9 +26,11 @@ export function useScannerInput(onScan, options = {}) {
     };
 
     const handleKeyDown = (event) => {
-      const activeTag = document.activeElement?.tagName;
+      const activeElement = document.activeElement;
+      const activeTag = activeElement?.tagName;
+      const scannerAllowed = activeElement?.dataset?.scannerAllow === 'true';
 
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+      if ((activeTag === 'INPUT' || activeTag === 'TEXTAREA') && !scannerAllowed) {
         return;
       }
 

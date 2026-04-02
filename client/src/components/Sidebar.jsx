@@ -1,8 +1,11 @@
 import { NavLink } from 'react-router-dom';
 
 const navItems = [
-  { to: '/scanner', label: 'Inventory Manager', icon: '📦' },
-  { to: '/reports', label: 'Logs & Export', icon: '🧾' },
+  { to: '/import', label: '1. Import', icon: 'I' },
+  { to: '/scan', label: '2. Scan', icon: 'S' },
+  { to: '/update', label: '3. Update', icon: 'U' },
+  { to: '/export', label: '4. Export', icon: 'E' },
+  { to: '/reports', label: 'Reports', icon: 'R' },
 ];
 
 function Sidebar() {
@@ -12,7 +15,7 @@ function Sidebar() {
         <img src="/checkmate-logo.svg" alt="CheckMate logo" className="brand-logo" />
         <div>
           <h2>CheckMate</h2>
-          <p>Inventory manager</p>
+          <p>Inventory workflow</p>
         </div>
       </div>
 
@@ -30,8 +33,8 @@ function Sidebar() {
       </nav>
 
       <div className="sidebar-note">
-        <strong>Simple 4-step flow</strong>
-        <span>Import data, scan product, update quantity, download Excel.</span>
+        <strong>Workflow</strong>
+        <span>Import sheet, scan and filter, update the correct row, then export the final file.</span>
       </div>
     </aside>
   );
