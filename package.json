@@ -1,0 +1,11 @@
+{
+  "name": "checkmate-workspace",
+  "private": true,
+  "scripts": {
+    "dev:all": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix server run check && npm --prefix client run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
