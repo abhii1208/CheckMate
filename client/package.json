@@ -19,9 +19,8 @@
     "react-router-dom": "^6.28.1",
     "xlsx": "^0.18.5"
   },
-  "dependencies": {
+  "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^5.4.11"
   }
-  
 }

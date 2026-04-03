@@ -17,6 +17,7 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,http://
   .map((value) => value.trim().replace(/\/$/, ''))
   .filter(Boolean);
 const isDevelopment = (process.env.NODE_ENV || 'development') !== 'production';
+const isVercelOrigin = (origin) => /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
 
 app.use(
   cors({
@@ -29,7 +30,7 @@ app.use(
       const normalizedOrigin = origin.replace(/\/$/, '');
       const isLocalhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalizedOrigin);
 
-      if (isDevelopment || isLocalhostOrigin || allowedOrigins.includes(normalizedOrigin)) {
+      if (isDevelopment || isLocalhostOrigin || allowedOrigins.includes(normalizedOrigin) || isVercelOrigin(normalizedOrigin)) {
         callback(null, true);
         return;
       }
