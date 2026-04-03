@@ -45,6 +45,25 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'CheckMate API',
+    message: 'Backend is running. Use /api/health to verify service health.',
+  });
+});
+
+app.get('/health', (req, res) => {
+  const connection = db.getConnectionInfo();
+
+  res.json({
+    status: 'ok',
+    service: 'CheckMate API',
+    mode: connection.mode,
+    message: connection.message,
+  });
+});
+
 app.get('/api/health', (req, res) => {
   const connection = db.getConnectionInfo();
 
