@@ -22,9 +22,10 @@ export function AuthProvider({ children }) {
 
   const login = (data) => setAuth(data);
   const logout = () => setAuth(null);
+  const updateAuthUser = (data) => setAuth(data);
 
   return (
-    <AuthContext.Provider value={{ auth, login, logout }}>
+    <AuthContext.Provider value={{ auth, login, logout, updateAuthUser }}>
       {children}
     </AuthContext.Provider>
   );

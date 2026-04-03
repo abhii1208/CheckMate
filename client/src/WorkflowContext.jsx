@@ -414,7 +414,18 @@ export function WorkflowProvider({ children }) {
       const hasAnyUpdates = importedEntries.some((entry) => entry.isEdited || entry.updatedQuantity !== null);
       const updatedQuantityColumnIndex = columnCount;
       const updatedEntryColumnIndex = columnCount + 1;
+      const changedColumnsColumnIndex = columnCount + 2;
+      const matchedByColumnIndex = columnCount + 3;
+      const updatedAtColumnIndex = columnCount + 4;
       const exportRows = sheetRows.map((row) => [...row]);
+      const changeLogRows = [[
+        'Imported Entry',
+        'Primary Barcode',
+        'Updated Quantity',
+        'Changed Columns',
+        'Matched By',
+        'Updated At',
+      ]];
 
       importedEntries.forEach((entry) => {
         if (!exportRows[entry.rowIndex]) {
@@ -431,9 +442,15 @@ export function WorkflowProvider({ children }) {
           if (rowIndex === headerRowIndex) {
             row[updatedQuantityColumnIndex] = 'Updated Quantity';
             row[updatedEntryColumnIndex] = 'Updated Entry';
+            row[changedColumnsColumnIndex] = 'Changed Columns';
+            row[matchedByColumnIndex] = 'Matched By';
+            row[updatedAtColumnIndex] = 'Updated At';
           } else {
             row[updatedQuantityColumnIndex] = row[updatedQuantityColumnIndex] ?? '';
             row[updatedEntryColumnIndex] = '';
+            row[changedColumnsColumnIndex] = '';
+            row[matchedByColumnIndex] = '';
+            row[updatedAtColumnIndex] = '';
           }
         });
       }
@@ -448,15 +465,43 @@ export function WorkflowProvider({ children }) {
         }
 
         if (entry.isEdited || entry.updatedQuantity !== null) {
+          const changedColumns = (entry.rowValues || []).reduce((list, value, index) => {
+            const originalValue = sheetRows[entry.rowIndex]?.[index] ?? '';
+
+            if (String(originalValue ?? '') !== String(value ?? '')) {
+              list.push(sheetHeaders[index] || `Column ${index + 1}`);
+            }
+
+            return list;
+          }, []);
+
           exportRows[entry.rowIndex][updatedEntryColumnIndex] = entry.updatedQuantity !== null
             ? `Saved entry update, quantity ${entry.updatedQuantity}`
             : 'Saved entry update';
+          exportRows[entry.rowIndex][changedColumnsColumnIndex] = changedColumns.join(', ');
+          exportRows[entry.rowIndex][matchedByColumnIndex] = entry.barcode || entry.name || '';
+          exportRows[entry.rowIndex][updatedAtColumnIndex] = new Date().toISOString();
+
+          changeLogRows.push([
+            entry.rowLabel,
+            entry.barcode || '',
+            entry.updatedQuantity ?? '',
+            changedColumns.join(', '),
+            entry.barcode || entry.name || '',
+            exportRows[entry.rowIndex][updatedAtColumnIndex],
+          ]);
         }
       });
 
       const workbook = utils.book_new();
       const worksheet = utils.aoa_to_sheet(exportRows);
       utils.book_append_sheet(workbook, worksheet, sheetName || 'Updated Inventory');
+
+      if (changeLogRows.length > 1) {
+        const changeLogSheet = utils.aoa_to_sheet(changeLogRows);
+        utils.book_append_sheet(workbook, changeLogSheet, 'CheckMate Changes');
+      }
+
       writeFile(workbook, `${selectedFileName.replace(/\.(xlsx|csv)$/i, '') || 'checkmate-inventory'}-updated.xlsx`);
       toast.success('Updated sheet downloaded successfully.');
       return true;

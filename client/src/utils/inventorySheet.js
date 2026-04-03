@@ -221,11 +221,16 @@ function getPriorityDisplayIndexes(headers, quantityIndex) {
 }
 
 export function createEntryLabel(entry, headers = []) {
-  const quantityText = Number.isFinite(Number(entry.updatedQuantity))
-    ? `Qty ${Number(entry.updatedQuantity)}`
+  const resolvedQuantity = Number.isFinite(Number(entry.updatedQuantity))
+    ? Number(entry.updatedQuantity)
     : Number.isFinite(Number(entry.importedQuantity))
-      ? `Qty ${Number(entry.importedQuantity)}`
-      : '';
+      ? Number(entry.importedQuantity)
+      : (
+        Number.isInteger(entry.quantityColumnIndex)
+          ? parseQuantityValue(entry.rowValues?.[entry.quantityColumnIndex])
+          : null
+      );
+  const quantityText = Number.isFinite(Number(resolvedQuantity)) ? `Qty ${Number(resolvedQuantity)}` : '';
   const displayParts = [];
   const priorityIndexes = getPriorityDisplayIndexes(headers, entry.quantityColumnIndex);
 
@@ -469,8 +474,17 @@ export function createFallbackProduct(baseProduct) {
 }
 
 export function buildProductFromEntry(baseProduct, entry, headers, matchedQuery, duplicateCount = 0) {
-  const originalQuantity = Number(entry.importedQuantity ?? baseProduct.expected_stock ?? 0);
-  const currentQuantity = Number(entry.updatedQuantity ?? originalQuantity);
+  const parsedEntryQuantity = Number.isInteger(entry.quantityColumnIndex)
+    ? parseQuantityValue(entry.rowValues?.[entry.quantityColumnIndex])
+    : null;
+  const originalQuantity = Number.isFinite(Number(entry.importedQuantity))
+    ? Number(entry.importedQuantity)
+    : Number.isFinite(Number(parsedEntryQuantity))
+      ? Number(parsedEntryQuantity)
+      : Number(baseProduct.expected_stock ?? 0);
+  const currentQuantity = Number.isFinite(Number(entry.updatedQuantity))
+    ? Number(entry.updatedQuantity)
+    : originalQuantity;
 
   return {
     ...baseProduct,
@@ -568,7 +582,7 @@ export async function parseImportedInventoryFile(file) {
         barcode,
         name: itemName,
         rowValues: [...rowValues],
-        importedQuantity: parsedQuantity ?? 0,
+        importedQuantity: parsedQuantity,
         updatedQuantity: null,
         quantityColumnIndex: resolvedQuantityIndex,
         barcodeColumnIndex: barcodeIndex >= 0 ? barcodeIndex : rowValues.findIndex((value) => normalizeText(value) === barcode),

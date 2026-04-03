@@ -122,9 +122,7 @@ function ProductCard({
   const micStreamRef = useRef(null);
   const duplicateFilterRef = useRef(null);
   const duplicateImageInputRef = useRef(null);
-  const duplicateCameraVideoRef = useRef(null);
   const duplicateCameraReaderRef = useRef(null);
-  const duplicateCameraControlsRef = useRef(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState('');
@@ -165,7 +163,8 @@ function ProductCard({
         micStreamRef.current = null;
       }
 
-      duplicateCameraControlsRef.current?.stop?.().catch?.(() => {});
+      duplicateCameraReaderRef.current?.stop?.().catch?.(() => {});
+      duplicateCameraReaderRef.current?.clear?.().catch?.(() => {});
     };
   }, [SpeechRecognitionClass]);
 
@@ -227,29 +226,14 @@ function ProductCard({
     setDuplicateCameraBusy(true);
 
     try {
-      await duplicateCameraControlsRef.current?.stop?.();
+      await duplicateCameraReaderRef.current?.stop?.();
     } catch (error) {}
 
-    duplicateCameraControlsRef.current = null;
+    try {
+      await duplicateCameraReaderRef.current?.clear?.();
+    } catch (error) {}
+
     duplicateCameraReaderRef.current = null;
-
-    const video = duplicateCameraVideoRef.current;
-    const stream = video?.srcObject;
-
-    if (stream?.getTracks) {
-      stream.getTracks().forEach((track) => {
-        try {
-          track.stop();
-        } catch (error) {}
-      });
-    }
-
-    if (video) {
-      try {
-        video.pause();
-      } catch (error) {}
-      video.srcObject = null;
-    }
 
     setDuplicateCameraActive(false);
     setDuplicateCameraBusy(false);
@@ -259,75 +243,46 @@ function ProductCard({
     try {
       setDuplicateCameraBusy(true);
       setDuplicateCameraError('');
+      await stopDuplicateCamera();
 
-      const [{ BrowserCodeReader, BrowserMultiFormatReader }, zxingLibrary] = await Promise.all([
-        import('@zxing/browser'),
-        import('@zxing/library'),
-      ]);
-      const {
-        BarcodeFormat,
-        DecodeHintType,
-        NotFoundException,
-        ChecksumException,
-        FormatException,
-      } = zxingLibrary;
-
-      const devices = await BrowserCodeReader.listVideoInputDevices();
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+      const devices = await Html5Qrcode.getCameras();
       const preferredCamera = devices.find((device) => /back|rear|environment/i.test(device.label))
-        || devices.find((device) => /front|webcam|integrated|facetime/i.test(device.label))
+        || devices.find((device) => /front|user|webcam|integrated|facetime/i.test(device.label))
         || devices[0];
 
-      if (!preferredCamera?.deviceId) {
+      if (!preferredCamera?.id && !preferredCamera?.deviceId) {
         throw new Error('No camera detected.');
       }
 
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.CODE_93,
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-      ]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-
-      const reader = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 80,
-        delayBetweenScanSuccess: 500,
-        tryPlayVideoTimeout: 5000,
-      });
-
+      const reader = new Html5Qrcode('duplicate-camera-reader');
       duplicateCameraReaderRef.current = reader;
       setDuplicateCameraActive(true);
+      await new Promise((resolve) => window.requestAnimationFrame(resolve));
 
-      const controls = await reader.decodeFromVideoDevice(
-        preferredCamera.deviceId,
-        duplicateCameraVideoRef.current,
-        async (result, error, activeControls) => {
-          duplicateCameraControlsRef.current = activeControls || duplicateCameraControlsRef.current;
-
-          if (result) {
-            const nextValue = result.getText();
-            setDuplicateFilter(nextValue);
-            applyDuplicateFilter(nextValue, 'camera');
-            await stopDuplicateCamera();
-            return;
-          }
-
-          if (
-            error
-            && !(error instanceof NotFoundException)
-            && !(error instanceof ChecksumException)
-            && !(error instanceof FormatException)
-          ) {
-            setDuplicateCameraError('Inline camera is active but the barcode is not clear enough yet.');
-          }
-        }
+      await reader.start(
+        preferredCamera.id || preferredCamera.deviceId,
+        {
+          fps: 18,
+          disableFlip: false,
+          rememberLastUsedCamera: true,
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+          ],
+        },
+        async (decodedText) => {
+          setDuplicateFilter(decodedText);
+          applyDuplicateFilter(decodedText, 'camera');
+          await stopDuplicateCamera();
+        },
+        () => {}
       );
-
-      duplicateCameraControlsRef.current = controls;
     } catch (error) {
       setDuplicateCameraError('Could not start the inline camera scanner right now.');
       setDuplicateCameraActive(false);
@@ -470,7 +425,7 @@ function ProductCard({
           {product.matchLabel ? <p className="helper-text row-context">Matched by: {product.matchLabel}</p> : null}
         </div>
         <span className={`badge ${quantityIndex >= 0 ? 'badge-success' : 'badge-warning'}`}>
-          {quantityIndex >= 0 ? `Quantity ${currentQuantity || 0}` : 'General entry editor'}
+          {quantityIndex >= 0 ? `Quantity ${currentQuantity || 'Not set'}` : 'General entry editor'}
         </span>
       </div>
 
@@ -530,17 +485,9 @@ function ProductCard({
                 </button>
               </div>
             </label>
-            {duplicateCameraActive ? (
-              <div className="duplicate-camera-box">
-                <video
-                  ref={duplicateCameraVideoRef}
-                  className="duplicate-camera-video"
-                  muted
-                  playsInline
-                  autoPlay
-                />
-              </div>
-            ) : null}
+            <div className={`duplicate-camera-box ${duplicateCameraActive ? '' : 'camera-shell-hidden'}`}>
+              <div id="duplicate-camera-reader" className="duplicate-camera-video" />
+            </div>
             <input
               ref={duplicateImageInputRef}
               type="file"

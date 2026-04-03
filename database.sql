@@ -39,3 +39,4 @@ CREATE INDEX IF NOT EXISTS idx_stock_logs_product_id ON stock_logs(product_id);
 CREATE INDEX IF NOT EXISTS idx_stock_logs_timestamp ON stock_logs(timestamp DESC);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS otp VARCHAR(10);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_expiry TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url TEXT;

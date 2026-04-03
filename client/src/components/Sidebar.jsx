@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom';
 
 const navItems = [
-  { to: '/import', label: '1. Import', icon: 'I' },
-  { to: '/scan', label: '2. Scan', icon: 'S' },
-  { to: '/update', label: '3. Update', icon: 'U' },
-  { to: '/export', label: '4. Export', icon: 'E' },
-  { to: '/reports', label: 'Reports', icon: 'R' },
+  { to: '/import', label: 'Import', meta: 'Step 1' },
+  { to: '/scan', label: 'Scan', meta: 'Step 2' },
+  { to: '/update', label: 'Update', meta: 'Step 3' },
+  { to: '/export', label: 'Export', meta: 'Step 4' },
+  { to: '/reports', label: 'Reports', meta: 'History' },
 ];
 
 function Sidebar() {
@@ -26,15 +26,18 @@ function Sidebar() {
             to={item.to}
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
+            <span className="nav-dot" aria-hidden="true" />
+            <span className="nav-copy">
+              <strong className="nav-label">{item.label}</strong>
+              <small className="nav-meta">{item.meta}</small>
+            </span>
           </NavLink>
         ))}
       </nav>
 
       <div className="sidebar-note">
         <strong>Workflow</strong>
-        <span>Import sheet, scan and filter, update the correct row, then export the final file.</span>
+        <span>Import the sheet, scan or filter the exact entry, update the current values, then export the final file.</span>
       </div>
     </aside>
   );

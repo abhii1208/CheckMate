@@ -70,6 +70,7 @@ function AuthPage({ onAuthenticated }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage('');
+    const normalizedEmail = form.email.trim().toLowerCase();
 
     if (!isLogin) {
       if (!isRegisterValid) {
@@ -78,20 +79,36 @@ function AuthPage({ onAuthenticated }) {
       }
     }
 
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const endpoint = isLogin ? '/auth/login' : '/auth/register';
       const payload = isLogin
-        ? { email: form.email, password: form.password }
-        : { name: form.name, email: form.email, password: form.password };
+        ? { email: normalizedEmail, password: form.password }
+        : { name: form.name.trim(), email: normalizedEmail, password: form.password };
 
       const response = await api.post(endpoint, payload);
-      const { token, user } = response.data;
 
-      localStorage.setItem('checkmate_auth', JSON.stringify({ token, user }));
-      setAuthToken(token);
-      onAuthenticated({ token, user });
-      toast.success(isLogin ? 'Welcome back.' : 'Account created successfully.');
+      if (isLogin) {
+        const { token, user } = response.data;
+        localStorage.setItem('checkmate_auth', JSON.stringify({ token, user }));
+        setAuthToken(token);
+        onAuthenticated({ token, user });
+        toast.success('Welcome back.');
+      } else {
+        setForm((current) => ({
+          ...initialForm,
+          email: current.email,
+        }));
+        setMode('login');
+        setShowPassword(false);
+        setShowConfirmPassword(false);
+        toast.success('Registration successful. Login now.');
+      }
     } catch (error) {
       setErrorMessage(error.userMessage || 'Authentication failed.');
     } finally {

@@ -29,12 +29,14 @@ function ScanWorkflowPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [availableCameras, setAvailableCameras] = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState('');
+  const [preferredFacingMode, setPreferredFacingMode] = useState('environment');
   const [externalScannerReady, setExternalScannerReady] = useState(true);
 
   const scannerReaderRef = useRef(null);
-  const scannerControlsRef = useRef(null);
+  const mobileDetectorRef = useRef(null);
+  const mobileDetectorTimerRef = useRef(null);
   const barcodeInputRef = useRef(null);
-  const videoRef = useRef(null);
+  const cameraStartRequestRef = useRef(0);
   const duplicateScansRef = useRef(new Map());
   const audioContextRef = useRef(null);
   const stopRequestedRef = useRef(false);
@@ -60,7 +62,8 @@ function ScanWorkflowPage() {
   }, []);
 
   const forceStopCameraStream = useCallback(() => {
-    const video = videoRef.current;
+    const container = document.getElementById('camera-reader');
+    const video = container?.querySelector('video');
     const mediaStream = video?.srcObject;
 
     if (mediaStream?.getTracks) {
@@ -83,11 +86,21 @@ function ScanWorkflowPage() {
   }, []);
 
   const cleanupCamera = useCallback(async () => {
+    if (mobileDetectorTimerRef.current) {
+      window.clearInterval(mobileDetectorTimerRef.current);
+      mobileDetectorTimerRef.current = null;
+    }
+
+    mobileDetectorRef.current = null;
+
     try {
-      await scannerControlsRef.current?.stop?.();
+      await scannerReaderRef.current?.stop?.();
     } catch (error) {}
 
-    scannerControlsRef.current = null;
+    try {
+      await scannerReaderRef.current?.clear?.();
+    } catch (error) {}
+
     scannerReaderRef.current = null;
     forceStopCameraStream();
   }, [forceStopCameraStream]);
@@ -187,18 +200,18 @@ function ScanWorkflowPage() {
   }, [setPageError]);
 
   const handleSwitchCamera = useCallback(() => {
-    if (!availableCameras.length) {
-      return;
+    if (availableCameras.length > 1) {
+      const currentIndex = availableCameras.findIndex((camera) => camera.id === selectedCameraId);
+      const nextCamera = availableCameras[currentIndex + 1] || availableCameras[0];
+
+      if (nextCamera?.id && nextCamera.id !== selectedCameraId) {
+        setSelectedCameraId(nextCamera.id);
+        return;
+      }
     }
 
-    const currentIndex = availableCameras.findIndex((camera) => camera.deviceId === selectedCameraId);
-    const nextCamera = availableCameras[currentIndex + 1] || availableCameras[0];
-
-    if (!nextCamera?.deviceId || nextCamera.deviceId === selectedCameraId) {
-      return;
-    }
-
-    setSelectedCameraId(nextCamera.deviceId);
+    setPreferredFacingMode((current) => current === 'environment' ? 'user' : 'environment');
+    setSelectedCameraId('');
   }, [availableCameras, selectedCameraId]);
 
   useEffect(() => {
@@ -207,6 +220,8 @@ function ScanWorkflowPage() {
     }
 
     let cancelled = false;
+    const requestId = cameraStartRequestRef.current + 1;
+    cameraStartRequestRef.current = requestId;
 
     const startCamera = async () => {
       try {
@@ -215,97 +230,120 @@ function ScanWorkflowPage() {
         setPageError('');
         await cleanupCamera();
 
-        const [{ BrowserCodeReader, BrowserMultiFormatReader }, zxingLibrary] = await Promise.all([
-          import('@zxing/browser'),
-          import('@zxing/library'),
-        ]);
-        const {
-          BarcodeFormat,
-          DecodeHintType,
-          NotFoundException,
-          ChecksumException,
-          FormatException,
-        } = zxingLibrary;
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+        const devices = await Html5Qrcode.getCameras();
+        const normalizedDevices = (devices || []).map((device, index) => ({
+          id: device.id || device.deviceId || `${index}`,
+          label: device.label || `Camera ${index + 1}`,
+        }));
 
-        const devices = await BrowserCodeReader.listVideoInputDevices();
-
-        if (!devices?.length) {
+        if (!normalizedDevices.length) {
           throw new Error('No camera detected on this device.');
         }
 
-        if (cancelled || stopRequestedRef.current) {
+        if (cancelled || stopRequestedRef.current || cameraStartRequestRef.current !== requestId) {
           return;
         }
 
-        setAvailableCameras(devices);
+        setAvailableCameras(normalizedDevices);
 
         const preferredCamera = selectedCameraId
-          || devices.find((device) => /webcam|front|integrated|facetime/i.test(device.label))?.deviceId
-          || devices[0].deviceId;
+          || (
+            preferredFacingMode === 'user'
+              ? normalizedDevices.find((device) => /front|user|facetime/i.test(device.label))?.id
+              : normalizedDevices.find((device) => /back|rear|environment/i.test(device.label))?.id
+          )
+          || normalizedDevices[0].id;
 
         if (!selectedCameraId) {
           setSelectedCameraId(preferredCamera);
         }
 
-        const hints = new Map();
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-          BarcodeFormat.CODE_128,
-          BarcodeFormat.CODE_39,
-          BarcodeFormat.CODE_93,
-          BarcodeFormat.EAN_13,
-          BarcodeFormat.EAN_8,
-          BarcodeFormat.UPC_A,
-          BarcodeFormat.UPC_E,
-        ]);
-        hints.set(DecodeHintType.TRY_HARDER, true);
-
-        const reader = new BrowserMultiFormatReader(hints, {
-          delayBetweenScanAttempts: 70,
-          delayBetweenScanSuccess: 500,
-          tryPlayVideoTimeout: 6000,
-        });
+        const reader = new Html5Qrcode('camera-reader');
         scannerReaderRef.current = reader;
 
-        const controls = await reader.decodeFromVideoDevice(
-          preferredCamera,
-          videoRef.current,
-          async (result, error, activeControls) => {
-            scannerControlsRef.current = activeControls || scannerControlsRef.current;
-
+        await reader.start(
+          preferredCamera || { facingMode: preferredFacingMode },
+          {
+            fps: 18,
+            disableFlip: false,
+            rememberLastUsedCamera: true,
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.CODE_93,
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+            ],
+          },
+          async (decodedText) => {
             if (stopRequestedRef.current || scanHandledRef.current) {
               return;
             }
 
-            if (result) {
-              scanHandledRef.current = true;
-              const matched = await runLookup(result.getText(), 'camera');
+            scanHandledRef.current = true;
+            const matched = await runLookup(decodedText, 'camera');
 
-              if (matched) {
-                await stopCamera();
-              } else {
-                scanHandledRef.current = false;
-              }
-
-              return;
+            if (matched) {
+              await stopCamera();
+            } else {
+              scanHandledRef.current = false;
             }
-
-            if (
-              error
-              && !(error instanceof NotFoundException)
-              && !(error instanceof ChecksumException)
-              && !(error instanceof FormatException)
-              && !cancelled
-            ) {
-              setCameraError('Camera is active, but the barcode is not clear enough yet. Hold the phone steady and reduce glare.');
-            }
-          }
+          },
+          () => {}
         );
 
-        scannerControlsRef.current = controls;
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+          try {
+            mobileDetectorRef.current = new window.BarcodeDetector({
+              formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e'],
+            });
+
+            mobileDetectorTimerRef.current = window.setInterval(async () => {
+              if (stopRequestedRef.current || scanHandledRef.current || !mobileDetectorRef.current) {
+                return;
+              }
+
+              const container = document.getElementById('camera-reader');
+              const video = container?.querySelector('video');
+
+              if (!video || video.readyState < 2 || video.videoWidth < 10 || video.videoHeight < 10) {
+                return;
+              }
+
+              try {
+                const detections = await mobileDetectorRef.current.detect(video);
+                const firstDetection = detections?.[0];
+                const detectedValue = firstDetection?.rawValue;
+
+                if (!detectedValue) {
+                  return;
+                }
+
+                scanHandledRef.current = true;
+                const matched = await runLookup(detectedValue, 'camera');
+
+                if (matched) {
+                  await stopCamera();
+                } else {
+                  scanHandledRef.current = false;
+                }
+              } catch (error) {}
+            }, 250);
+          } catch (error) {
+            mobileDetectorRef.current = null;
+          }
+        }
+
+        if (!cancelled && cameraStartRequestRef.current === requestId) {
+          setCameraActive(true);
+        }
       } catch (error) {
         if (!cancelled) {
           await cleanupCamera();
-          setCameraError('Camera failed to start. Allow camera access and choose the correct webcam.');
+          setCameraError('Camera failed to start. Allow camera access and then try switching between front and back cameras.');
           setCameraActive(false);
         }
       } finally {
@@ -322,7 +360,7 @@ function ScanWorkflowPage() {
       stopRequestedRef.current = true;
       cleanupCamera();
     };
-  }, [cameraActive, cleanupCamera, runLookup, selectedCameraId, setPageError, stopCamera]);
+  }, [cameraActive, cleanupCamera, preferredFacingMode, runLookup, selectedCameraId, setPageError, stopCamera]);
 
   const handleImageUpload = async (event) => {
     const selectedFile = event.target.files?.[0];
@@ -395,58 +433,63 @@ function ScanWorkflowPage() {
 
       <section className="scanner-grid">
         <div className={`panel scan-panel ${cameraActive || isCameraBusy ? 'scan-panel-active' : ''}`}>
-          <div className="method-list">
-            <div className="method-card method-card-accent">
-              <h4>Camera</h4>
-              <p>Barcode camera scan now uses a plain live preview with ZXing so the webcam feed starts cleanly and scans immediately.</p>
-              <div className="button-row">
-                <button type="button" className="primary-btn" onClick={handleStartCamera} disabled={cameraActive || isCameraBusy}>
-                  {isCameraBusy && !cameraActive ? 'Starting...' : 'Start camera'}
-                </button>
-                <button type="button" className="secondary-btn" onClick={stopCamera} disabled={!cameraActive && !isCameraBusy}>
-                  {isCameraBusy && cameraActive ? 'Stopping...' : 'Stop camera'}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={handleSwitchCamera}
-                  disabled={isCameraBusy || availableCameras.length < 2}
-                >
-                  Switch camera
-                </button>
+          <div className="scan-primary">
+            <div className="section-header scan-section-header">
+              <div>
+                <h3>Live barcode scan</h3>
+                <p>Open the camera and hold the barcode steady. Matching entries load automatically as soon as the code is detected.</p>
               </div>
-              {availableCameras.length > 1 ? (
-                <label className="camera-select">
-                  <span>Choose camera</span>
-                  <select value={selectedCameraId} onChange={(event) => setSelectedCameraId(event.target.value)}>
-                    {availableCameras.map((camera) => (
-                      <option key={camera.deviceId} value={camera.deviceId}>
-                        {camera.label || `Camera ${camera.deviceId}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
             </div>
 
-            <div className="method-card">
-              <h4>Image Upload</h4>
-              <p>Upload a barcode image or screenshot and let CheckMate decode it.</p>
-              <label className="file-upload-row">
-                <span className="secondary-btn">Choose barcode image</span>
-                <input type="file" accept="image/*" onChange={handleImageUpload} />
+            <div className="button-row scan-control-row">
+              <button type="button" className="primary-btn" onClick={handleStartCamera} disabled={cameraActive || isCameraBusy}>
+                {isCameraBusy && !cameraActive ? 'Starting...' : 'Start camera'}
+              </button>
+              <button type="button" className="secondary-btn" onClick={stopCamera} disabled={!cameraActive && !isCameraBusy}>
+                {isCameraBusy && cameraActive ? 'Stopping...' : 'Stop camera'}
+              </button>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={handleSwitchCamera}
+                disabled={isCameraBusy || (!availableCameras.length && !cameraActive)}
+              >
+                {preferredFacingMode === 'environment' ? 'Front camera' : 'Back camera'}
+              </button>
+            </div>
+
+            {availableCameras.length > 1 ? (
+              <label className="camera-select">
+                <span>Camera source</span>
+                <select value={selectedCameraId} onChange={(event) => setSelectedCameraId(event.target.value)}>
+                  {availableCameras.map((camera) => (
+                    <option key={camera.id} value={camera.id}>
+                      {camera.label}
+                    </option>
+                  ))}
+                </select>
               </label>
-              {isImageScanning ? <p className="helper-text">Scanning selected image...</p> : null}
-              {imagePreviewUrl ? (
-                <div className="image-preview-box">
-                  <img src={imagePreviewUrl} alt="Uploaded barcode preview" />
-                </div>
-              ) : null}
-            </div>
+            ) : null}
+          </div>
 
+          <div className={`camera-shell ${cameraActive || isCameraBusy ? '' : 'camera-shell-hidden'}`}>
+            <div className="camera-frame">
+              <div id="camera-reader" className="camera-reader camera-reader-plain" />
+              <div className="camera-guides" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+            <p className="helper-text">Tip: keep the barcode flat and close enough to focus. On phones, use the camera button to switch between rear and front lenses.</p>
+          </div>
+          <div id="image-reader" className="sr-only" />
+          {cameraError ? <p className="error-text">{cameraError}</p> : null}
+
+          <div className="method-list method-list-secondary">
             <div className="method-card">
-              <h4>Manual Type</h4>
-              <p>Type barcode, batch, stock number, name, or combined values like `batch123&gt;stock789`.</p>
+              <h4>Manual entry</h4>
               <form
                 className="barcode-form"
                 onSubmit={(event) => {
@@ -467,25 +510,24 @@ function ScanWorkflowPage() {
             </div>
 
             <div className="method-card">
-              <h4>External Scanner</h4>
-              <p>{externalScannerReady ? 'Ready. Scanned values fetch matching entries automatically.' : 'Reading scan and fetching the matching entry...'}</p>
+              <h4>Image upload</h4>
+              <label className="file-upload-row">
+                <span className="secondary-btn">Choose barcode image</span>
+                <input type="file" accept="image/*" onChange={handleImageUpload} />
+              </label>
+              {isImageScanning ? <p className="helper-text">Scanning selected image...</p> : null}
+              {imagePreviewUrl ? (
+                <div className="image-preview-box">
+                  <img src={imagePreviewUrl} alt="Uploaded barcode preview" />
+                </div>
+              ) : null}
             </div>
-          </div>
 
-          <div className={`camera-shell ${cameraActive || isCameraBusy ? '' : 'camera-shell-hidden'}`}>
-            <div className="camera-frame">
-              <video
-                ref={videoRef}
-                className="camera-reader camera-reader-plain"
-                muted
-                playsInline
-                autoPlay
-              />
+            <div className="method-card">
+              <h4>External scanner</h4>
+              <p>{externalScannerReady ? 'Ready for direct barcode input.' : 'Reading scan and fetching the matching entry...'}</p>
             </div>
-            <p className="helper-text">Hold the phone barcode steady in front of the webcam. If glare appears, tilt the phone slightly and reduce screen brightness a little.</p>
           </div>
-          <div id="image-reader" className="sr-only" />
-          {cameraError ? <p className="error-text">{cameraError}</p> : null}
         </div>
 
         <section className="panel product-panel scan-result-panel">
